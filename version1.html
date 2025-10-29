@@ -1,10 +1,591 @@
 <!DOCTYPE html>
-<html>
-	<head>
-		<meta charset="UTF-8">
-		<title></title>
-	</head>
-	<body>
-		
-	</body>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MIDI Groove</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/tone@14.7.77/build/Tone.js"></script>
+    <script src="https://unpkg.com/@tonejs/midi"></script>
+
+    <style>
+        :root {
+            --bg-color: #e0e5ec;
+            --primary-color: #8a9bff;
+            --shadow-light: #ffffff;
+            --shadow-dark: #a3b1c6;
+            --text-color: #5a6779;
+            --note-colors: #ff8a80, #ffb347, #ffea00, #8cff80, #80d8ff, #8a9bff, #d380ff;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            overflow: hidden;
+        }
+
+        .game-container {
+            width: 100%;
+            max-width: 480px;
+            height: 90vh;
+            max-height: 800px;
+            background-color: var(--bg-color);
+            border-radius: 30px;
+            box-shadow: 12px 12px 24px var(--shadow-dark), -12px -12px 24px var(--shadow-light);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 25px;
+            box-sizing: border-box;
+            position: relative;
+        }
+
+        .header {
+            width: 100%;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            margin: 0;
+            font-weight: 700;
+            color: var(--primary-color);
+            text-shadow: 1px 1px 2px var(--shadow-light);
+        }
+        
+        .song-title {
+            height: 20px;
+            margin-top: 10px;
+            font-style: italic;
+            opacity: 0.8;
+        }
+
+        .game-screen {
+            width: 100%;
+            flex-grow: 1;
+            background-color: var(--bg-color);
+            border-radius: 20px;
+            box-shadow: inset 8px 8px 16px var(--shadow-dark), inset -8px -8px 16px var(--shadow-light);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .note-lane {
+            position: absolute;
+            bottom: 0;
+            width: 25%;
+            height: 100%;
+            border-right: 2px solid rgba(163, 177, 198, 0.3);
+            box-sizing: border-box;
+        }
+        .note-lane:last-child {
+            border-right: none;
+        }
+        .note-lane:nth-child(1) { left: 0%; }
+        .note-lane:nth-child(2) { left: 25%; }
+        .note-lane:nth-child(3) { left: 50%; }
+        .note-lane:nth-child(4) { left: 75%; }
+
+        .note {
+            position: absolute;
+            width: 80%;
+            left: 10%;
+            height: 25px;
+            background-color: var(--primary-color);
+            border-radius: 15px;
+            box-shadow: 4px 4px 8px var(--shadow-dark), -4px -4px 8px var(--shadow-light);
+        }
+
+        .hit-zone {
+            position: absolute;
+            bottom: 10%;
+            width: 100%;
+            height: 40px;
+            display: flex;
+        }
+
+        .key-target {
+            width: 25%;
+            height: 100%;
+            border-radius: 15px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-weight: bold;
+            font-size: 1.2rem;
+            transition: all 0.05s ease;
+        }
+
+        .key-target.active {
+            box-shadow: inset 4px 4px 8px var(--shadow-dark), inset -4px -4px 8px var(--shadow-light);
+            transform: scale(0.98);
+        }
+
+        .hit-feedback {
+            position: absolute;
+            bottom: 15%;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 2rem;
+            font-weight: bold;
+            opacity: 0;
+            transition: all 0.3s ease;
+            text-shadow: 2px 2px 4px var(--shadow-dark);
+        }
+
+        .score-display {
+            position: absolute;
+            top: 15px;
+            right: 25px;
+            font-size: 1.5rem;
+            font-weight: bold;
+        }
+        
+        .combo-display {
+            position: absolute;
+            top: 15px;
+            left: 25px;
+            font-size: 1.5rem;
+            font-weight: bold;
+        }
+
+        .controls {
+            width: 100%;
+            margin-top: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .neumorphic-btn {
+            padding: 15px 25px;
+            border: none;
+            border-radius: 15px;
+            background: var(--bg-color);
+            box-shadow: 6px 6px 12px var(--shadow-dark), -6px -6px 12px var(--shadow-light);
+            font-size: 1rem;
+            font-weight: bold;
+            color: var(--text-color);
+            cursor: pointer;
+            transition: all 0.1s ease-in-out;
+            margin: 0 10px;
+        }
+
+        .neumorphic-btn:hover {
+            color: var(--primary-color);
+        }
+
+        .neumorphic-btn:active {
+            box-shadow: inset 6px 6px 12px var(--shadow-dark), inset -6px -6px 12px var(--shadow-light);
+            transform: scale(0.98);
+        }
+        
+        #file-upload-label {
+             display: inline-block;
+        }
+        
+        input[type="file"] {
+            display: none;
+        }
+
+        .modal {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(224, 229, 236, 0.9);
+            border-radius: 30px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+            text-align: center;
+            z-index: 100;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+        }
+        
+        .modal.visible {
+            opacity: 1;
+            pointer-events: auto;
+        }
+        
+        .modal-content {
+            background: var(--bg-color);
+            padding: 40px;
+            border-radius: 20px;
+            box-shadow: 12px 12px 24px var(--shadow-dark), -12px -12px 24px var(--shadow-light);
+        }
+
+        .modal h2 {
+            font-size: 2rem;
+            margin-bottom: 10px;
+        }
+        
+        .modal p {
+            font-size: 1.2rem;
+            margin-bottom: 20px;
+        }
+
+    </style>
+</head>
+<body>
+
+    <div class="game-container">
+        <div class="header">
+            <h1>MIDI Groove</h1>
+            <p class="song-title">Upload a MIDI file to start</p>
+        </div>
+        
+        <div class="game-screen">
+            <div class="note-lane"></div>
+            <div class="note-lane"></div>
+            <div class="note-lane"></div>
+            <div class="note-lane"></div>
+            
+            <div class="hit-zone">
+                <div class="key-target">D</div>
+                <div class="key-target">F</div>
+                <div class="key-target">J</div>
+                <div class="key-target">K</div>
+            </div>
+            
+            <div class="score-display">0</div>
+            <div class="combo-display"></div>
+            <div class="hit-feedback"></div>
+        </div>
+        
+        <div class="controls">
+            <label for="midi-upload" id="file-upload-label" class="neumorphic-btn">Upload MIDI</label>
+            <input type="file" id="midi-upload" accept=".mid,.midi">
+            <button id="start-btn" class="neumorphic-btn" disabled>Start Game</button>
+        </div>
+        
+        <div id="instructions-modal" class="modal visible">
+            <div class="modal-content">
+                <h2>Welcome to MIDI Groove!</h2>
+                <p>1. Upload a MIDI file.<br>2. Press 'Start Game'.<br>3. Use keys D, F, J, K to hit the notes.</p>
+                <button id="close-instructions-btn" class="neumorphic-btn">Got it!</button>
+            </div>
+        </div>
+
+        <div id="results-modal" class="modal">
+            <div class="modal-content">
+                <h2>Game Over!</h2>
+                <p id="final-score"></p>
+                <p id="final-accuracy"></p>
+                <button id="play-again-btn" class="neumorphic-btn">Play Again</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // DOM Elements
+            const gameScreen = document.querySelector('.game-screen');
+            const scoreDisplay = document.querySelector('.score-display');
+            const comboDisplay = document.querySelector('.combo-display');
+            const hitFeedback = document.querySelector('.hit-feedback');
+            const songTitle = document.querySelector('.song-title');
+            const keyTargets = document.querySelectorAll('.key-target');
+            const uploadInput = document.getElementById('midi-upload');
+            const startBtn = document.getElementById('start-btn');
+            const instructionsModal = document.getElementById('instructions-modal');
+            const closeInstructionsBtn = document.getElementById('close-instructions-btn');
+            const resultsModal = document.getElementById('results-modal');
+            const playAgainBtn = document.getElementById('play-again-btn');
+            const finalScoreEl = document.getElementById('final-score');
+            const finalAccuracyEl = document.getElementById('final-accuracy');
+
+            // Game State
+            let score = 0;
+            let combo = 0;
+            let totalNotes = 0;
+            let notesHit = 0;
+            let midiData = null;
+            let gameActive = false;
+            let notesOnScreen = [];
+            
+            // Game Constants
+            const NOTE_SPEED = 300; // pixels per second
+            const HIT_WINDOW_PERFECT = 0.08;
+            const HIT_WINDOW_GOOD = 0.15;
+            const NUM_LANES = 4;
+            const LANE_KEYS = ['d', 'f', 'j', 'k'];
+            const NOTE_COLORS = getComputedStyle(document.documentElement).getPropertyValue('--note-colors').split(', ');
+
+            // Tone.js setup
+            const synth = new Tone.PolySynth(Tone.Synth, {
+                oscillator: { type: 'fmsine' },
+                envelope: { attack: 0.01, decay: 0.1, sustain: 0.3, release: 1 },
+            }).toDestination();
+
+            // --- Event Listeners ---
+
+            uploadInput.addEventListener('change', handleFileSelect);
+            startBtn.addEventListener('click', startGame);
+            
+            closeInstructionsBtn.addEventListener('click', () => {
+                instructionsModal.classList.remove('visible');
+            });
+            
+            playAgainBtn.addEventListener('click', () => {
+                resultsModal.classList.remove('visible');
+                resetGame();
+                uploadInput.value = '';
+                startBtn.disabled = true;
+                songTitle.textContent = 'Upload a MIDI file to start';
+            });
+
+            window.addEventListener('keydown', handleKeyPress);
+            window.addEventListener('keyup', handleKeyRelease);
+
+            // --- File Handling ---
+
+            function handleFileSelect(event) {
+                const file = event.target.files[0];
+                if (!file) return;
+
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    try {
+                        midiData = new Midi(e.target.result);
+                        songTitle.textContent = midiData.header.name || file.name.replace(/\.(mid|midi)$/i, '');
+                        startBtn.disabled = false;
+                    } catch (error) {
+                        console.error("Error parsing MIDI file:", error);
+                        songTitle.textContent = "Invalid MIDI file!";
+                        startBtn.disabled = true;
+                    }
+                };
+                reader.readAsArrayBuffer(file);
+            }
+
+            // --- Chart Generation ---
+
+            function generateBestTrackChart(midi) {
+                // 1. Find the best track for gameplay (drum track or most active melodic track)
+                const tracks = midi.tracks
+                    .filter(track => track.notes.length > 10)
+                    .sort((a, b) => b.notes.length - a.notes.length);
+                const drumTrack = tracks.find(t => t.channel === 9);
+                const bestTrack = drumTrack || tracks[0];
+
+                if (!bestTrack) {
+                    return { chart: [], name: "No playable tracks" };
+                }
+
+                // 2. Create a note map based on the most frequent notes in the best track
+                const noteCounts = {};
+                bestTrack.notes.forEach(n => {
+                    noteCounts[n.midi] = (noteCounts[n.midi] || 0) + 1;
+                });
+                const sortedNotes = Object.keys(noteCounts).sort((a, b) => noteCounts[b] - noteCounts[a]);
+                const noteMap = new Map();
+                sortedNotes.slice(0, NUM_LANES).forEach((midi, index) => {
+                    noteMap.set(parseInt(midi), index);
+                });
+
+                // 3. Build the chart from the best track's notes that are in the map
+                const finalChart = bestTrack.notes
+                    .filter(note => noteMap.has(note.midi))
+                    .map(note => ({ time: note.time, lane: noteMap.get(note.midi) }))
+                    .sort((a, b) => a.time - b.time);
+                
+                return { chart: finalChart, name: bestTrack.instrument.name };
+            }
+
+
+            // --- Game Logic ---
+
+            async function startGame() {
+                if (!midiData || gameActive) return;
+                await Tone.start();
+
+                resetGame();
+                gameActive = true;
+                startBtn.disabled = true;
+                document.getElementById('file-upload-label').style.pointerEvents = 'none';
+
+                const { chart: gameChart, name: trackName } = generateBestTrackChart(midiData);
+
+                if (gameChart.length === 0) {
+                    songTitle.textContent = "Could not generate a playable chart!";
+                    gameActive = false;
+                    startBtn.disabled = false;
+                    document.getElementById('file-upload-label').style.pointerEvents = 'auto';
+                    return;
+                }
+                
+                const originalTitle = midiData.header.name || uploadInput.files[0].name.replace(/\.(mid|midi)$/i, '');
+                songTitle.textContent = `${originalTitle} (${trackName})`;
+                totalNotes = gameChart.length;
+
+                // Schedule GAME notes
+                gameChart.forEach(note => {
+                    Tone.Draw.schedule(() => {
+                        createNoteElement(note);
+                    }, note.time - (gameScreen.offsetHeight / NOTE_SPEED));
+                });
+
+                // Schedule AUDIO for ALL tracks
+                midiData.tracks.forEach(track => {
+                    track.notes.forEach(note => {
+                        const duration = Math.max(0.01, note.duration);
+                        Tone.Transport.scheduleOnce((time) => {
+                            synth.triggerAttackRelease(note.name, duration, time, note.velocity);
+                        }, note.time);
+                    });
+                });
+                
+                Tone.Transport.scheduleOnce(() => {
+                    endGame();
+                }, midiData.duration + 3);
+
+                Tone.Transport.start();
+                gameLoop();
+            }
+
+            function createNoteElement(noteInfo) {
+                const noteElement = document.createElement('div');
+                noteElement.classList.add('note');
+                noteElement.style.top = '-50px';
+                noteElement.style.left = `${25 * noteInfo.lane + 5}%`;
+                noteElement.style.width = '20%';
+                noteElement.style.backgroundColor = NOTE_COLORS[noteInfo.lane % NOTE_COLORS.length];
+                gameScreen.appendChild(noteElement);
+                noteInfo.element = noteElement;
+                notesOnScreen.push(noteInfo);
+            }
+
+            function gameLoop() {
+                if (!gameActive) return;
+
+                const currentTime = Tone.Transport.seconds;
+                const hitZoneTop = gameScreen.offsetHeight * 0.8; 
+
+                notesOnScreen.forEach(note => {
+                    if (note.hit) return;
+                    const yPos = (currentTime - note.time) * NOTE_SPEED + hitZoneTop;
+                    note.element.style.transform = `translateY(${yPos}px)`;
+
+                    if (yPos > gameScreen.offsetHeight) {
+                        note.hit = true; 
+                        note.element.style.display = 'none';
+                        updateCombo(0); 
+                        showFeedback('Miss', '#ff8a80');
+                    }
+                });
+
+                notesOnScreen = notesOnScreen.filter(note => !note.hit || note.element.style.display !== 'none');
+                requestAnimationFrame(gameLoop);
+            }
+            
+            function endGame() {
+                gameActive = false;
+                Tone.Transport.stop();
+                Tone.Transport.cancel();
+                
+                notesOnScreen.forEach(note => note.element.remove());
+                notesOnScreen = [];
+
+                finalScoreEl.textContent = `Final Score: ${score}`;
+                const accuracy = totalNotes > 0 ? ((notesHit / totalNotes) * 100).toFixed(2) : 0;
+                finalAccuracyEl.textContent = `Accuracy: ${accuracy}%`;
+                resultsModal.classList.add('visible');
+                document.getElementById('file-upload-label').style.pointerEvents = 'auto';
+            }
+
+            function resetGame() {
+                score = 0;
+                combo = 0;
+                notesHit = 0;
+                totalNotes = 0;
+                scoreDisplay.textContent = score;
+                comboDisplay.textContent = '';
+                document.querySelectorAll('.note').forEach(n => n.remove());
+                notesOnScreen = [];
+            }
+
+            // --- Input and Scoring ---
+
+            function handleKeyPress(e) {
+                if (!gameActive || !LANE_KEYS.includes(e.key)) return;
+
+                const laneIndex = LANE_KEYS.indexOf(e.key);
+                keyTargets[laneIndex].classList.add('active');
+
+                const currentTime = Tone.Transport.seconds;
+                let bestNote = null;
+                let smallestTimeDiff = Infinity;
+
+                notesOnScreen.forEach(note => {
+                    if (note.lane === laneIndex && !note.hit) {
+                        const timeDiff = Math.abs(currentTime - note.time);
+                        if (timeDiff < smallestTimeDiff) {
+                            smallestTimeDiff = timeDiff;
+                            bestNote = note;
+                        }
+                    }
+                });
+
+                if (bestNote && smallestTimeDiff <= HIT_WINDOW_GOOD) {
+                    if (smallestTimeDiff <= HIT_WINDOW_PERFECT) {
+                        processHit(bestNote, 'Perfect', 100, '#8cff80');
+                    } else {
+                        processHit(bestNote, 'Good', 50, '#80d8ff');
+                    }
+                }
+            }
+            
+            function handleKeyRelease(e) {
+                 if (!LANE_KEYS.includes(e.key)) return;
+                 const laneIndex = LANE_KEYS.indexOf(e.key);
+                 keyTargets[laneIndex].classList.remove('active');
+            }
+
+            function processHit(note, feedbackText, points, color) {
+                note.hit = true;
+                note.element.style.display = 'none';
+                
+                notesHit++;
+                score += points + combo;
+                updateCombo(combo + 1);
+                showFeedback(feedbackText, color);
+                scoreDisplay.textContent = score;
+            }
+
+            function updateCombo(newCombo) {
+                combo = newCombo;
+                if (combo > 2) {
+                    comboDisplay.textContent = `${combo} Combo`;
+                } else {
+                    comboDisplay.textContent = '';
+                }
+            }
+
+            function showFeedback(text, color) {
+                hitFeedback.textContent = text;
+                hitFeedback.style.color = color;
+                hitFeedback.style.opacity = 1;
+                hitFeedback.style.transform = 'translateX(-50%) scale(1.2)';
+                setTimeout(() => {
+                    hitFeedback.style.opacity = 0;
+                    hitFeedback.style.transform = 'translateX(-50%) scale(1)';
+                }, 300);
+            }
+        });
+    </script>
+</body>
 </html>
